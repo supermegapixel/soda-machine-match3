@@ -32,9 +32,12 @@ func reset(moves: int = 25, target: int = 25000) -> void:
 func next_level() -> bool:
 	if state != "won":
 		return false
+	var rollover_moves := current_moves
+	var overage_bonus_moves := maxi(0, revenue_cents - target_cents) / 10000
 	level += 1
 	target_cents = roundi(target_cents * 1.15)
-	max_moves = maxi(15, starting_moves - (level - 1))
+	var base_level_moves := maxi(15, starting_moves - (level - 1))
+	max_moves = base_level_moves + rollover_moves + overage_bonus_moves
 	current_moves = max_moves
 	revenue_cents = 0
 	streak = 0
@@ -85,6 +88,7 @@ func finish_move() -> void:
 func restock() -> void:
 	if state != "lost":
 		return
+	revenue_cents = int(revenue_cents * 0.90)
 	current_moves += 5
 	state = "playing"
 	changed.emit()

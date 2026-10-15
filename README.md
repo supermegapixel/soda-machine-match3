@@ -2,7 +2,7 @@
 
 Godot 4.3+ portrait game. Open `project.godot` and run the main scene, or run `godot --path .`.
 
-Tap adjacent cans or drag one onto its neighbor. Match at least three to earn each can's brand profit. Invalid swaps return without using a move. Successive cascades add 25% of base profit per step. Start by reaching $250 within 25 moves; out-of-stock machines can restock five moves. After a win, choose Next Level: targets compound by 15% (rounded to cents), moves decrease by one per level to a minimum of 15, and spawning increasingly favors cheaper sodas. New Machine resets progression.
+Tap adjacent cans or drag one onto its neighbor. Match at least three to earn each can's brand profit. Invalid swaps return without using a move. Successive cascades add 25% of base profit per step. Start by reaching $250 within 25 moves; out-of-stock machines can buy five restock moves for 10% of current revenue (the remaining revenue is truncated to whole cents). After a win, choose Next Level: targets compound by 15% (rounded to cents), base moves decrease by one per level to a minimum of 15, and spawning increasingly favors cheaper sodas. Unused moves from a won level roll over, and every full $100 (10000 cents) earned over that level’s target adds one bonus move for the next level. The next level starts with base moves + unused moves + over-target bonus moves; revenue resets to zero. New Machine resets progression and all carried moves.
 
 Four in a line creates a Fizz can that clears along that line when matched. T/L matches create a 3×3 crate. Five in a line creates a golden can; swap it with any brand to clear that brand. Two golden cans clear the board. Special effects chain, and boards without possible moves automatically restock without charging a move.
 

@@ -110,7 +110,11 @@ func run() -> void:
 	manager.begin_move()
 	manager.finish_move()
 	check(manager.state == "lost", "moves exhausted triggers out of stock")
+	manager.revenue_cents = 12349
 	manager.restock()
+	check(manager.revenue_cents == 11114, "restock deducts ten percent and truncates fractional cents")
+	manager.restock()
+	check(manager.revenue_cents == 11114 and manager.current_moves == 5, "restock during play does not charge or grant moves")
 	check(manager.state == "playing" and manager.current_moves == 5, "restock grants five moves")
 	fixture()
 	grid.animation_time = 0.01
@@ -137,6 +141,8 @@ func run() -> void:
 	check(grid.special_for(grid.find_matches()[0]) == 7, "vertical five creates gold")
 	manager.reset()
 	check(not manager.next_level() and manager.level == 1, "cannot advance unfinished level")
+	manager.current_moves = 0
+	manager.revenue_cents = manager.target_cents
 	manager.state = "won"
 	check(manager.next_level(), "completed level advances")
 	check(manager.level == 2 and manager.target_cents == 28750, "next target increases by 15 percent")
@@ -145,9 +151,33 @@ func run() -> void:
 	manager.next_level()
 	check(manager.target_cents == 33063, "target growth compounds with cent rounding")
 	for n in 30:
+		manager.current_moves = 0
 		manager.state = "won"
 		manager.next_level()
 	check(manager.max_moves == 15 and manager.current_moves == 15, "move allowance stops at fifteen")
+	for overage in [0, 9999, 10000, 19999, 20000, 29999]:
+		manager.reset()
+		manager.current_moves = 7
+		manager.revenue_cents = manager.target_cents + overage
+		manager.finish_move()
+		check(manager.next_level(), "won level with overage %d advances" % overage)
+		var expected_moves: int = 24 + 7 + overage / 10000
+		check(manager.current_moves == expected_moves and manager.max_moves == expected_moves, "rollover and full $100 bonuses for overage %d" % overage)
+		check(manager.revenue_cents == 0, "overage revenue resets on next level")
+	manager.current_moves = 3
+	manager.revenue_cents = manager.target_cents
+	manager.finish_move()
+	manager.next_level()
+	check(manager.current_moves == 26, "following level uses its base plus only remaining moves")
+	manager.reset()
+	check(manager.current_moves == 25 and manager.max_moves == 25, "reset clears carried moves and bonuses")
+	manager.reset(16)
+	manager.level = 10
+	manager.current_moves = 4
+	manager.revenue_cents = manager.target_cents + 10000
+	manager.finish_move()
+	manager.next_level()
+	check(manager.current_moves == 20, "rollover and bonus add to minimum fifteen base moves")
 	var weights: Array = manager.brand_weights()
 	check(weights[0] > weights[1] and weights[1] > weights[2] and weights[2] > weights[3] and weights[3] > weights[4] and weights[4] > 0, "higher levels favor lower profit brands with all brands available")
 	grid.rng.seed = 789
@@ -172,6 +202,7 @@ func run() -> void:
 	root.add_child(main)
 	check(main.get_node("VendingHUD").revenue_label.text.contains("250.00"), "main scene HUD shows target")
 	var hud = main.get_node("VendingHUD")
+	check(hud.restock_button.text == "+5 Restock Moves (-10% Revenue)", "restock button shows revenue cost")
 	check(not hud.next_level_button.visible, "next level hidden during play")
 	manager.revenue_cents = manager.target_cents
 	manager.finish_move()

@@ -60,7 +60,7 @@ func _ready() -> void:
 	title = label("", 54, Color("f7cb66"))
 	content.add_child(title)
 	restock_button = Button.new()
-	restock_button.text = "+5 Restock Moves"
+	restock_button.text = "+5 Restock Moves (-10% Revenue)"
 	restock_button.add_theme_font_size_override("font_size", 36)
 	restock_button.pressed.connect(func(): manager.restock())
 	content.add_child(restock_button)
