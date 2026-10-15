@@ -5,6 +5,8 @@ signal level_complete
 signal out_of_stock
 
 const PROFITS := [150, 200, 250, 400, 600]
+var level: int = 1
+var starting_moves: int = 25
 var max_moves: int = 25
 var current_moves: int = 25
 var target_cents: int = 25000
@@ -17,6 +19,8 @@ var target_revenue: float:
 	get: return target_cents / 100.0
 
 func reset(moves: int = 25, target: int = 25000) -> void:
+	level = 1
+	starting_moves = moves
 	max_moves = moves
 	current_moves = moves
 	target_cents = target
@@ -24,6 +28,27 @@ func reset(moves: int = 25, target: int = 25000) -> void:
 	streak = 0
 	state = "playing"
 	changed.emit()
+
+func next_level() -> bool:
+	if state != "won":
+		return false
+	level += 1
+	target_cents = roundi(target_cents * 1.15)
+	max_moves = maxi(15, starting_moves - (level - 1))
+	current_moves = max_moves
+	revenue_cents = 0
+	streak = 0
+	state = "playing"
+	changed.emit()
+	return true
+
+# Level one is uniform; each level increasingly favors cheaper brands.
+func brand_weights() -> Array[float]:
+	var weights: Array[float] = []
+	var difficulty := float(level - 1) / float(level + 3)
+	for brand in PROFITS.size():
+		weights.append(1.0 + difficulty * (4 - brand))
+	return weights
 
 func begin_move() -> bool:
 	if state != "playing" or current_moves <= 0:
@@ -45,11 +70,15 @@ func award(brands: Array, cascade: int) -> int:
 	return earned
 
 func finish_move() -> void:
+	if state != "playing":
+		return
 	if revenue_cents >= target_cents:
 		state = "won"
+		get_node("/root/SoundManager").play_win()
 		level_complete.emit()
 	elif current_moves <= 0:
 		state = "lost"
+		get_node("/root/SoundManager").play_loss()
 		out_of_stock.emit()
 	changed.emit()
 

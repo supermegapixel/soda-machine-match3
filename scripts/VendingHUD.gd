@@ -4,6 +4,7 @@ var revenue_label: Label
 var moves_label: Label
 var modal: PanelContainer
 var title: Label
+var next_level_button: Button
 var restock_button: Button
 var manager: Node
 
@@ -63,6 +64,13 @@ func _ready() -> void:
 	restock_button.add_theme_font_size_override("font_size", 36)
 	restock_button.pressed.connect(func(): manager.restock())
 	content.add_child(restock_button)
+	next_level_button = Button.new()
+	next_level_button.text = "Next Level"
+	next_level_button.add_theme_font_size_override("font_size", 36)
+	next_level_button.pressed.connect(func():
+		if manager.next_level():
+			get_parent().get_node("VendingGrid").new_board())
+	content.add_child(next_level_button)
 	var restart := Button.new()
 	restart.text = "New Machine"
 	restart.add_theme_font_size_override("font_size", 32)
@@ -76,9 +84,10 @@ func _ready() -> void:
 
 func refresh() -> void:
 	revenue_label.text = "$%.2f  /  $%.2f TARGET" % [manager.revenue, manager.target_revenue]
-	moves_label.text = "%d MOVES REMAINING   •   STREAK ×%d" % [manager.current_moves, maxi(1,manager.streak)]
+	moves_label.text = "LEVEL %d • %d MOVES • STREAK ×%d" % [manager.level, manager.current_moves, maxi(1,manager.streak)]
 	modal.visible = manager.state != "playing"
 	title.text = "LEVEL COMPLETE!" if manager.state == "won" else "OUT OF STOCK"
+	next_level_button.visible = manager.state == "won"
 	restock_button.visible = manager.state == "lost"
 
 func cash_effect(cents: int, at: Vector2) -> void:

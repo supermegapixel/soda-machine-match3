@@ -18,6 +18,7 @@ func check(condition: bool, message: String) -> void:
 		print("PASS: " + message)
 
 func fixture() -> void:
+	grid.rng.seed = 12345
 	grid.board = []
 	for y in 8:
 		var row: Array = []
@@ -135,10 +136,51 @@ func run() -> void:
 	for y in 5: set_brand(0,y,3)
 	check(grid.special_for(grid.find_matches()[0]) == 7, "vertical five creates gold")
 	manager.reset()
+	check(not manager.next_level() and manager.level == 1, "cannot advance unfinished level")
+	manager.state = "won"
+	check(manager.next_level(), "completed level advances")
+	check(manager.level == 2 and manager.target_cents == 28750, "next target increases by 15 percent")
+	check(manager.current_moves == 24 and manager.max_moves == 24 and manager.revenue_cents == 0 and manager.streak == 0 and manager.state == "playing", "next level resets round and reduces moves")
+	manager.state = "won"
+	manager.next_level()
+	check(manager.target_cents == 33063, "target growth compounds with cent rounding")
+	for n in 30:
+		manager.state = "won"
+		manager.next_level()
+	check(manager.max_moves == 15 and manager.current_moves == 15, "move allowance stops at fifteen")
+	var weights: Array = manager.brand_weights()
+	check(weights[0] > weights[1] and weights[1] > weights[2] and weights[2] > weights[3] and weights[3] > weights[4] and weights[4] > 0, "higher levels favor lower profit brands with all brands available")
+	grid.rng.seed = 789
+	var counts := [0, 0, 0, 0, 0]
+	for n in 20000:
+		counts[grid.random_brand()] += 1
+	check(counts[0] > counts[1] and counts[1] > counts[2] and counts[2] > counts[3] and counts[3] > counts[4], "weighted sampler favors cheap sodas")
+	grid.new_board()
+	check(grid.find_matches().is_empty() and grid.has_valid_move(), "weighted level board starts settled and playable")
+	manager.reset()
+	check(manager.level == 1 and manager.brand_weights() == [1.0, 1.0, 1.0, 1.0, 1.0], "new machine resets progression and spawn weights")
+	var sound = root.get_node("SoundManager")
+	for kind in ["swap", "match", "explosion", "win", "loss"]:
+		var stream = sound.sounds[kind]
+		check(stream is AudioStreamWAV and stream.format == AudioStreamWAV.FORMAT_16_BITS and stream.mix_rate == 22050 and not stream.data.is_empty(), "procedural WAV for " + kind)
+	check(sound.match_pitch(1) == 1.0 and sound.match_pitch(2) > sound.match_pitch(1) and sound.match_pitch(3) > sound.match_pitch(2), "cascade cash register pitch escalates")
+	for n in 30:
+		sound.play_match(n + 1)
+	check(sound.voices.size() <= sound.MAX_VOICES, "audio voices stay bounded during cascades")
 	# Instantiate the full scene as a smoke test of HUD wiring and resources.
 	var main = load("res://scenes/Main.tscn").instantiate()
 	root.add_child(main)
 	check(main.get_node("VendingHUD").revenue_label.text.contains("250.00"), "main scene HUD shows target")
+	var hud = main.get_node("VendingHUD")
+	check(not hud.next_level_button.visible, "next level hidden during play")
+	manager.revenue_cents = manager.target_cents
+	manager.finish_move()
+	check(hud.next_level_button.visible and not hud.restock_button.visible, "win displays Next Level button")
+	hud.next_level_button.pressed.emit()
+	check(manager.level == 2 and not hud.modal.visible and hud.moves_label.text.contains("LEVEL 2"), "Next Level button advances and refreshes HUD")
+	check(main.get_node("VendingGrid").views.size() == 64 and main.get_node("VendingGrid").find_matches().is_empty(), "Next Level button builds fresh settled board")
+	sound.stop_all()
+	await create_timer(0.1).timeout
 	main.queue_free()
 	grid.queue_free()
 	await process_frame

@@ -35,14 +35,28 @@ func at(p: Vector2i):
 func put(p: Vector2i, value) -> void:
 	board[p.y][p.x] = value
 
+func random_brand() -> int:
+	var weights: Array = manager().brand_weights()
+	var total := 0.0
+	for weight in weights:
+		total += weight
+	var roll := rng.randf() * total
+	for brand in weights.size():
+		roll -= weights[brand]
+		if roll < 0.0:
+			return brand
+	return weights.size() - 1
+
 func new_board() -> void:
+	select_cell(Vector2i(-1, -1))
+	press_cell = Vector2i(-1, -1)
 	board.clear()
 	for y in SIZE:
 		var row: Array = []
 		for x in SIZE:
-			var brand := rng.randi_range(0, 4)
+			var brand := random_brand()
 			while (x >= 2 and row[x-1].brand == brand and row[x-2].brand == brand) or (y >= 2 and board[y-1][x].brand == brand and board[y-2][x].brand == brand):
-				brand = rng.randi_range(0, 4)
+				brand = random_brand()
 			row.append(cell(brand))
 		board.append(row)
 	if not has_valid_move():
@@ -179,6 +193,7 @@ func has_valid_move() -> bool:
 func attempt_swap(a: Vector2i, b: Vector2i) -> bool:
 	if busy or not inside(a) or not inside(b) or not adjacent(a,b) or manager().state != "playing": return false
 	busy = true
+	get_node("/root/SoundManager").play_swap()
 	exchange(a,b)
 	animate_exchange(a,b)
 	await pause_animation()
@@ -241,6 +256,8 @@ func resolve(groups: Array, forced: Array = [], preferred: Vector2i = Vector2i(-
 				var anchor: Vector2i = preferred if preferred in group else group[group.size()/2]
 				creations[anchor] = cell(at(anchor).brand, kind, "row" if group[0].y == group[1].y else "column")
 		clear = expanded_clear(clear)
+		if clear.any(func(p): return at(p) != null and at(p).special != 0):
+			get_node("/root/SoundManager").play_explosion()
 		var brands: Array = []
 		for p in clear:
 			if at(p) == null: continue
@@ -248,6 +265,7 @@ func resolve(groups: Array, forced: Array = [], preferred: Vector2i = Vector2i(-
 			put(p, null)
 			views[p].dispense(animation_time)
 		var earned: int = manager().award(brands, cascade)
+		get_node("/root/SoundManager").play_match(cascade)
 		cash_dispensed.emit(earned, center(clear[0]))
 		await pause_animation()
 		for p in clear:
@@ -283,7 +301,7 @@ func collapse() -> void:
 			write -= 1
 		for y in range(write, -1, -1):
 			var p := Vector2i(x,y)
-			put(p,cell(rng.randi_range(0,4)))
+			put(p,cell(random_brand()))
 			var view = CanScene.instantiate()
 			add_child(view)
 			view.setup(at(p))
