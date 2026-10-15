@@ -6,11 +6,25 @@ const NAMES := ["COLA", "LIME", "ORANGE", "ENERGY", "KOMBUCHA"]
 var brand: int = 0
 var special: int = 0
 var selected := false
+var shaken_at: int = -1
+var shaken_visible := false
 
 func setup(data: Dictionary) -> void:
 	brand = data.brand
 	special = data.special
+	shaken_at = data.get("shaken_at", -1)
+	_update_shaken()
 	queue_redraw()
+
+func _process(_delta: float) -> void:
+	_update_shaken()
+
+func _update_shaken() -> void:
+	var now := Time.get_ticks_msec()
+	var active := shaken_at >= 0 and now >= shaken_at and now - shaken_at < 30000
+	if active != shaken_visible:
+		shaken_visible = active
+		queue_redraw()
 
 func _draw() -> void:
 	if selected:
@@ -26,6 +40,10 @@ func _draw() -> void:
 	if special != 0:
 		draw_circle(Vector2(0, 0), 30, Color("f6d16b"))
 	draw_string(ThemeDB.fallback_font, Vector2(-34, 6), caption, HORIZONTAL_ALIGNMENT_CENTER, 68, 15, Color("102034"))
+
+	if shaken_visible:
+		draw_circle(Vector2(30, -35), 16, Color("fff4a8"))
+		draw_string(ThemeDB.fallback_font, Vector2(22, -28), "+", HORIZONTAL_ALIGNMENT_CENTER, 16, 23, Color("102034"))
 
 func _box(color: Color, radius: int) -> StyleBoxFlat:
 	var box := StyleBoxFlat.new()

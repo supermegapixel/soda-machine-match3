@@ -137,6 +137,66 @@ func run() -> void:
 	grid.put(Vector2i(4,2),grid.cell(0,5,"column"))
 	check(grid.expanded_clear([Vector2i(2,2)]).size() == 15, "special effects chain without double counting")
 	fixture()
+	var shaken = grid.cell(0)
+	grid.mark_fall(shaken, 4)
+	check(shaken.shaken_at == -1, "four-space fall does not shake a can")
+	grid.mark_fall(shaken, 5)
+	check(grid.is_shaken(shaken), "five-space fall timestamps and shakes a can")
+	var stamp: int = shaken.shaken_at
+	check(grid.is_shaken(shaken, stamp + 29999), "shaken can is active just before 30 seconds")
+	check(not grid.is_shaken(shaken, stamp + 30000), "shaken can expires at 30000 milliseconds")
+	grid.mark_fall(shaken, 2)
+	check(shaken.shaken_at == stamp, "short fall preserves original shaken timestamp")
+	shaken.shaken_at = 0
+	grid.mark_fall(shaken, 5)
+	check(grid.is_shaken(shaken), "another long fall refreshes shaken status")
+	grid.put(Vector2i(3,3), shaken)
+	grid.rebuild_views()
+	check(grid.views[Vector2i(3,3)].shaken_visible, "shaken can view displays badge")
+	var cross: Array = grid.expanded_clear([Vector2i(3,3)])
+	var full_cross := cross.size() == 15
+	for n in 8:
+		full_cross = full_cross and Vector2i(n,3) in cross and Vector2i(3,n) in cross
+	check(full_cross, "shaken clear includes entire row and column exactly once")
+	grid.put(Vector2i(6,3), grid.cell(1))
+	grid.mark_fall(grid.at(Vector2i(6,3)), 5)
+	check(grid.expanded_clear([Vector2i(3,3)]).size() == 22, "cross explosions trigger other shaken cans")
+	grid.put(Vector2i(6,3), grid.cell(1,5,"column"))
+	check(grid.expanded_clear([Vector2i(3,3)]).size() == 22, "cross explosion chains special cans")
+	fixture()
+	shaken = grid.cell(0)
+	grid.mark_fall(shaken, 5)
+	grid.put(Vector2i(0,0), shaken)
+	check(grid.expanded_clear([Vector2i(0,0)]).size() == 15, "corner cross still clears full row and column")
+	# A five-space gap shakes survivors and incoming refill cans.
+	fixture()
+	var falling = grid.at(Vector2i(0,2))
+	for y in range(3,8): grid.put(Vector2i(0,y), null)
+	grid.rebuild_views()
+	await grid.collapse()
+	check(grid.at(Vector2i(0,7)) == falling and grid.is_shaken(falling), "collapse shakes surviving can falling five spaces")
+	check(grid.is_shaken(grid.at(Vector2i(0,0))) and grid.views[Vector2i(0,0)].shaken_visible, "five-space refill fall shakes new cans and updates badge")
+	fixture()
+	for y in range(4,8): grid.put(Vector2i(0,y), null)
+	grid.rebuild_views()
+	await grid.collapse()
+	check(not grid.is_shaken(grid.at(Vector2i(0,7))) and not grid.is_shaken(grid.at(Vector2i(0,0))), "four-space collapse leaves survivors and refill cans unshaken")
+	fixture()
+	# Capture the first award to verify a matched shaken can clears its cross in one batch.
+	for x in 3: set_brand(x,3,0)
+	grid.mark_fall(grid.at(Vector2i(1,3)), 5)
+	grid.rebuild_views()
+	var awards: Array = []
+	var capture = func(cents, _at): awards.append(cents)
+	grid.cash_dispensed.connect(capture)
+	var expected_cross_profit := 0
+	for y in 8:
+		for x in 8:
+			if y == 3 or x == 1: expected_cross_profit += manager.PROFITS[grid.at(Vector2i(x,y)).brand]
+	await grid.resolve([[Vector2i(0,3),Vector2i(1,3),Vector2i(2,3)]])
+	grid.cash_dispensed.disconnect(capture)
+	check(awards[0] == expected_cross_profit, "matched shaken can awards its full cross simultaneously without duplicates")
+	fixture()
 	for y in 5: set_brand(0,y,3)
 	check(grid.special_for(grid.find_matches()[0]) == 7, "vertical five creates gold")
 	manager.reset()
@@ -146,7 +206,7 @@ func run() -> void:
 	manager.state = "won"
 	check(manager.next_level(), "completed level advances")
 	check(manager.level == 2 and manager.target_cents == 28750, "next target increases by 15 percent")
-	check(manager.current_moves == 24 and manager.max_moves == 24 and manager.revenue_cents == 0 and manager.streak == 0 and manager.state == "playing", "next level resets round and reduces moves")
+	check(manager.current_moves == 25 and manager.max_moves == 25 and manager.revenue_cents == 0 and manager.streak == 0 and manager.state == "playing", "next level resets round with 25 base moves")
 	manager.state = "won"
 	manager.next_level()
 	check(manager.target_cents == 33063, "target growth compounds with cent rounding")
@@ -154,21 +214,21 @@ func run() -> void:
 		manager.current_moves = 0
 		manager.state = "won"
 		manager.next_level()
-	check(manager.max_moves == 15 and manager.current_moves == 15, "move allowance stops at fifteen")
+	check(manager.max_moves == 25 and manager.current_moves == 25, "base move allowance remains 25 at high levels")
 	for overage in [0, 9999, 10000, 19999, 20000, 29999]:
 		manager.reset()
 		manager.current_moves = 7
 		manager.revenue_cents = manager.target_cents + overage
 		manager.finish_move()
 		check(manager.next_level(), "won level with overage %d advances" % overage)
-		var expected_moves: int = 24 + 7 + overage / 10000
+		var expected_moves: int = 25 + 7 + overage / 10000
 		check(manager.current_moves == expected_moves and manager.max_moves == expected_moves, "rollover and full $100 bonuses for overage %d" % overage)
 		check(manager.revenue_cents == 0, "overage revenue resets on next level")
 	manager.current_moves = 3
 	manager.revenue_cents = manager.target_cents
 	manager.finish_move()
 	manager.next_level()
-	check(manager.current_moves == 26, "following level uses its base plus only remaining moves")
+	check(manager.current_moves == 28, "following level uses its base plus only remaining moves")
 	manager.reset()
 	check(manager.current_moves == 25 and manager.max_moves == 25, "reset clears carried moves and bonuses")
 	manager.reset(16)
@@ -177,7 +237,7 @@ func run() -> void:
 	manager.revenue_cents = manager.target_cents + 10000
 	manager.finish_move()
 	manager.next_level()
-	check(manager.current_moves == 20, "rollover and bonus add to minimum fifteen base moves")
+	check(manager.current_moves == 30, "rollover and bonus add to fixed 25 base moves")
 	var weights: Array = manager.brand_weights()
 	check(weights[0] > weights[1] and weights[1] > weights[2] and weights[2] > weights[3] and weights[3] > weights[4] and weights[4] > 0, "higher levels favor lower profit brands with all brands available")
 	grid.rng.seed = 789

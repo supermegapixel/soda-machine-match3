@@ -36,7 +36,7 @@ func next_level() -> bool:
 	var overage_bonus_moves := maxi(0, revenue_cents - target_cents) / 10000
 	level += 1
 	target_cents = roundi(target_cents * 1.15)
-	var base_level_moves := maxi(15, starting_moves - (level - 1))
+	var base_level_moves := 25
 	max_moves = base_level_moves + rollover_moves + overage_bonus_moves
 	current_moves = max_moves
 	revenue_cents = 0

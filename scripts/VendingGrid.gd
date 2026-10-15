@@ -8,6 +8,7 @@ const CELL := 118.0
 const FIZZ := 5
 const CRATE := 6
 const GOLD := 7
+const SHAKEN_DURATION_MS := 30000
 var board: Array = []
 var views: Dictionary = {}
 var busy := false
@@ -24,7 +25,7 @@ func _ready() -> void:
 	new_board()
 
 func cell(brand: int, special: int = 0, axis: String = "row") -> Dictionary:
-	return {"brand": brand, "special": special, "axis": axis}
+	return {"brand": brand, "special": special, "axis": axis, "shaken_at": -1}
 
 func inside(p: Vector2i) -> bool:
 	return p.x >= 0 and p.y >= 0 and p.x < SIZE and p.y < SIZE
@@ -220,15 +221,28 @@ func attempt_swap(a: Vector2i, b: Vector2i) -> bool:
 	settled.emit()
 	return true
 
+func is_shaken(data: Dictionary, now: int = Time.get_ticks_msec()) -> bool:
+	var timestamp: int = data.get("shaken_at", -1)
+	return timestamp >= 0 and now >= timestamp and now - timestamp < SHAKEN_DURATION_MS
+
+func mark_fall(data: Dictionary, distance: int) -> void:
+	if distance > 4:
+		data.shaken_at = Time.get_ticks_msec()
+
 func expanded_clear(initial: Array) -> Array:
 	var clear := initial.duplicate()
 	var index := 0
+	var now := Time.get_ticks_msec()
 	while index < clear.size():
 		var p: Vector2i = clear[index]
 		index += 1
 		var data = at(p)
 		if data == null: continue
 		var affected: Array = []
+		if is_shaken(data, now):
+			for n in SIZE:
+				affected.append(Vector2i(n, p.y))
+				affected.append(Vector2i(p.x, n))
 		if data.special == FIZZ:
 			for n in SIZE: affected.append(Vector2i(n,p.y) if data.axis == "row" else Vector2i(p.x,n))
 		elif data.special == CRATE:
@@ -256,7 +270,7 @@ func resolve(groups: Array, forced: Array = [], preferred: Vector2i = Vector2i(-
 				var anchor: Vector2i = preferred if preferred in group else group[group.size()/2]
 				creations[anchor] = cell(at(anchor).brand, kind, "row" if group[0].y == group[1].y else "column")
 		clear = expanded_clear(clear)
-		if clear.any(func(p): return at(p) != null and at(p).special != 0):
+		if clear.any(func(p): return at(p) != null and (at(p).special != 0 or is_shaken(at(p)))):
 			get_node("/root/SoundManager").play_explosion()
 		var brands: Array = []
 		for p in clear:
@@ -293,15 +307,18 @@ func collapse() -> void:
 			if at(source) == null: continue
 			var dest := Vector2i(x,write)
 			if source != dest:
+				mark_fall(at(source), write - y)
 				put(dest, at(source))
 				put(source,null)
 				views[dest] = views[source]
 				views.erase(source)
+				views[dest].setup(at(dest))
 				views[dest].travel(center(dest), animation_time)
 			write -= 1
 		for y in range(write, -1, -1):
 			var p := Vector2i(x,y)
 			put(p,cell(random_brand()))
+			mark_fall(at(p), write + 1)
 			var view = CanScene.instantiate()
 			add_child(view)
 			view.setup(at(p))
