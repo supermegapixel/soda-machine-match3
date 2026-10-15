@@ -149,7 +149,8 @@ func run() -> void:
 	check(shaken.shaken_at == stamp, "short fall preserves original shaken timestamp")
 	shaken.shaken_at = 0
 	grid.mark_fall(shaken, 5)
-	check(grid.is_shaken(shaken), "another long fall refreshes shaken status")
+	check(grid.is_shaken(shaken), "long fall can shake a can when the board has no active shaken can")
+	stamp = shaken.shaken_at
 	grid.put(Vector2i(3,3), shaken)
 	grid.rebuild_views()
 	check(grid.views[Vector2i(3,3)].shaken_visible, "shaken can view displays badge")
@@ -160,7 +161,14 @@ func run() -> void:
 	check(full_cross, "shaken clear includes entire row and column exactly once")
 	grid.put(Vector2i(6,3), grid.cell(1))
 	grid.mark_fall(grid.at(Vector2i(6,3)), 5)
-	check(grid.expanded_clear([Vector2i(3,3)]).size() == 22, "cross explosions trigger other shaken cans")
+	check(not grid.is_shaken(grid.at(Vector2i(6,3))), "active shaken can blocks another qualifying fall")
+	grid.mark_fall(shaken, 5)
+	check(shaken.shaken_at == stamp, "long fall does not refresh an active board can")
+	# Inject multiple shaken cans to verify defensive expansion of legacy board state.
+	grid.at(Vector2i(6,3)).shaken_at = Time.get_ticks_msec()
+	check(grid.expanded_clear([Vector2i(3,3)]).size() == 15, "secondary shaken can in cross does not trigger another cross")
+	cross = grid.expanded_clear([Vector2i(6,3), Vector2i(3,3)])
+	check(cross.size() == 15 and Vector2i(6,0) in cross and Vector2i(3,0) not in cross, "only first shaken can in initial clear triggers a cross")
 	grid.put(Vector2i(6,3), grid.cell(1,5,"column"))
 	check(grid.expanded_clear([Vector2i(3,3)]).size() == 22, "cross explosion chains special cans")
 	fixture()
@@ -168,14 +176,28 @@ func run() -> void:
 	grid.mark_fall(shaken, 5)
 	grid.put(Vector2i(0,0), shaken)
 	check(grid.expanded_clear([Vector2i(0,0)]).size() == 15, "corner cross still clears full row and column")
-	# A five-space gap shakes survivors and incoming refill cans.
+	# A five-space gap shakes only the first qualifying survivor.
 	fixture()
 	var falling = grid.at(Vector2i(0,2))
 	for y in range(3,8): grid.put(Vector2i(0,y), null)
 	grid.rebuild_views()
 	await grid.collapse()
 	check(grid.at(Vector2i(0,7)) == falling and grid.is_shaken(falling), "collapse shakes surviving can falling five spaces")
-	check(grid.is_shaken(grid.at(Vector2i(0,0))) and grid.views[Vector2i(0,0)].shaken_visible, "five-space refill fall shakes new cans and updates badge")
+	var active_count := 0
+	for row in grid.board:
+		for data in row:
+			if grid.is_shaken(data): active_count += 1
+	check(active_count == 1 and grid.views[Vector2i(0,7)].shaken_visible, "collapse creates exactly one shaken can and updates its badge")
+	check(not grid.is_shaken(grid.at(Vector2i(0,0))), "active survivor prevents refill cans from becoming shaken")
+	fixture()
+	grid.at(Vector2i(7,7)).shaken_at = Time.get_ticks_msec() - grid.SHAKEN_DURATION_MS
+	for y in 8: grid.put(Vector2i(0,y), null)
+	grid.rebuild_views()
+	await grid.collapse()
+	check(grid.is_shaken(grid.at(Vector2i(0,7))) and grid.views[Vector2i(0,7)].shaken_visible, "expired can allows a qualifying refill to become shaken")
+	grid.put(Vector2i(0,7), null)
+	grid.mark_fall(grid.at(Vector2i(1,0)), 5)
+	check(grid.is_shaken(grid.at(Vector2i(1,0))), "removing active can allows another qualifying fall")
 	fixture()
 	for y in range(4,8): grid.put(Vector2i(0,y), null)
 	grid.rebuild_views()

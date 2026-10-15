@@ -226,20 +226,26 @@ func is_shaken(data: Dictionary, now: int = Time.get_ticks_msec()) -> bool:
 	return timestamp >= 0 and now >= timestamp and now - timestamp < SHAKEN_DURATION_MS
 
 func mark_fall(data: Dictionary, distance: int) -> void:
-	if distance > 4:
-		data.shaken_at = Time.get_ticks_msec()
+	if distance <= 4: return
+	var now := Time.get_ticks_msec()
+	for row in board:
+		for existing in row:
+			if existing != null and is_shaken(existing, now): return
+	data.shaken_at = now
 
 func expanded_clear(initial: Array) -> Array:
 	var clear := initial.duplicate()
 	var index := 0
 	var now := Time.get_ticks_msec()
+	var cross_triggered := false
 	while index < clear.size():
 		var p: Vector2i = clear[index]
 		index += 1
 		var data = at(p)
 		if data == null: continue
 		var affected: Array = []
-		if is_shaken(data, now):
+		if not cross_triggered and is_shaken(data, now):
+			cross_triggered = true
 			for n in SIZE:
 				affected.append(Vector2i(n, p.y))
 				affected.append(Vector2i(p.x, n))
