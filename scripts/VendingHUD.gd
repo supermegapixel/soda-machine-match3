@@ -2,6 +2,8 @@ extends CanvasLayer
 
 var revenue_label: Label
 var moves_label: Label
+var standard_prices_label: Label
+var premium_prices_label: Label
 var modal: PanelContainer
 var title: Label
 var next_level_button: Button
@@ -48,8 +50,10 @@ func _ready() -> void:
 	info.add_child(label("SWAP CANS. STACK CASH.", 36, Color("f7cb66")))
 	info.add_child(label("Tap two neighbors or swipe to match 3+", 28))
 	info.add_child(label("4 → Fizz   •   T / L → Crate   •   5 → Gold", 27))
-	info.add_child(label("Cola $1.50 • Lime $2 • Orange $2.50", 25, Color("8eb0c7")))
-	info.add_child(label("Energy $4 • Kombucha $6", 25, Color("8eb0c7")))
+	standard_prices_label = label("", 25, Color("8eb0c7"))
+	info.add_child(standard_prices_label)
+	premium_prices_label = label("", 25, Color("8eb0c7"))
+	info.add_child(premium_prices_label)
 	info.add_child(label("Cascade streaks earn +25% per step", 25, Color("87f3c2")))
 	modal = panel(Rect2(100, 650, 880, 490), Color("19314b"))
 	modal.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -83,6 +87,8 @@ func _ready() -> void:
 	refresh()
 
 func refresh() -> void:
+	standard_prices_label.text = "Cola $%.2f • Lime $%.2f • Orange $%.2f" % [manager.brand_price_cents(0) / 100.0, manager.brand_price_cents(1) / 100.0, manager.brand_price_cents(2) / 100.0]
+	premium_prices_label.text = "Energy $%.2f • Kombucha $%.2f" % [manager.brand_price_cents(3) / 100.0, manager.brand_price_cents(4) / 100.0]
 	revenue_label.text = "$%.2f  /  $%.2f TARGET" % [manager.revenue, manager.target_revenue]
 	moves_label.text = "LEVEL %d • %d MOVES • STREAK ×%d" % [manager.level, manager.current_moves, maxi(1,manager.streak)]
 	modal.visible = manager.state != "playing"

@@ -46,6 +46,17 @@ func run() -> void:
 	manager.reset()
 	check(manager.award([0,1,2,3,4],1) == 1600, "mixed brand profit")
 	check(manager.award([1],2) == 250, "cascade bonus")
+	# Progress through real board transitions; round only the final compounded price.
+	for completed_boards in range(1, 11):
+		manager.state = "won"
+		check(manager.next_level(), "inflation board %d advances" % completed_boards)
+		for brand in 5:
+			var expected_price := int(round([150, 200, 250, 400, 600][brand] * pow(1.0 + [0.01, 0.015, 0.02, 0.025, 0.03][brand], completed_boards)))
+			check(manager.brand_price_cents(brand) == expected_price and manager.award([brand], 1) == expected_price, "compounded price and award for brand %d after %d boards" % [brand, completed_boards])
+	check(manager.brand_price_cents(0) == 166, "ten-board Cola price avoids intermediate cent rounding")
+	check(manager.award([0, 1, 2, 3, 4], 2) == 2526, "cascade bonus applies after summing inflated prices")
+	manager.reset()
+	check(manager.brand_price_cents(0) == 150 and manager.brand_price_cents(4) == 600, "new machine resets inflated prices")
 	fixture()
 	var original: Array = grid.board.duplicate(true)
 	check(not await grid.attempt_swap(Vector2i(0,0),Vector2i(1,0)), "invalid swap rejected")
@@ -214,7 +225,7 @@ func run() -> void:
 	var expected_cross_profit := 0
 	for y in 8:
 		for x in 8:
-			if y == 3 or x == 1: expected_cross_profit += manager.PROFITS[grid.at(Vector2i(x,y)).brand]
+			if y == 3 or x == 1: expected_cross_profit += manager.brand_price_cents(grid.at(Vector2i(x,y)).brand)
 	await grid.resolve([[Vector2i(0,3),Vector2i(1,3),Vector2i(2,3)]])
 	grid.cash_dispensed.disconnect(capture)
 	check(awards[0] == expected_cross_profit, "matched shaken can awards its full cross simultaneously without duplicates")
@@ -285,12 +296,16 @@ func run() -> void:
 	check(main.get_node("VendingHUD").revenue_label.text.contains("250.00"), "main scene HUD shows target")
 	var hud = main.get_node("VendingHUD")
 	check(hud.restock_button.text == "+5 Restock Moves (-10% Revenue)", "restock button shows revenue cost")
+	check(hud.standard_prices_label.text == "Cola $1.50 • Lime $2.00 • Orange $2.50" and hud.premium_prices_label.text == "Energy $4.00 • Kombucha $6.00", "HUD shows base prices on first board")
 	check(not hud.next_level_button.visible, "next level hidden during play")
 	manager.revenue_cents = manager.target_cents
 	manager.finish_move()
 	check(hud.next_level_button.visible and not hud.restock_button.visible, "win displays Next Level button")
 	hud.next_level_button.pressed.emit()
 	check(manager.level == 2 and not hud.modal.visible and hud.moves_label.text.contains("LEVEL 2"), "Next Level button advances and refreshes HUD")
+	check(hud.standard_prices_label.text == "Cola $1.52 • Lime $2.03 • Orange $2.55" and hud.premium_prices_label.text == "Energy $4.10 • Kombucha $6.18", "HUD refreshes all inflated prices after board completion")
+	manager.reset()
+	check(hud.premium_prices_label.text == "Energy $4.00 • Kombucha $6.00", "HUD resets prices for new machine")
 	check(main.get_node("VendingGrid").views.size() == 64 and main.get_node("VendingGrid").find_matches().is_empty(), "Next Level button builds fresh settled board")
 	sound.stop_all()
 	await create_timer(0.1).timeout

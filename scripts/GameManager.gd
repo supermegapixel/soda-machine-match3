@@ -4,7 +4,8 @@ signal changed
 signal level_complete
 signal out_of_stock
 
-const PROFITS := [150, 200, 250, 400, 600]
+const BASE_PRICES_CENTS := [150, 200, 250, 400, 600]
+const INFLATION_RATES := [0.01, 0.015, 0.02, 0.025, 0.03]
 var level: int = 1
 var starting_moves: int = 25
 var max_moves: int = 25
@@ -49,9 +50,12 @@ func next_level() -> bool:
 func brand_weights() -> Array[float]:
 	var weights: Array[float] = []
 	var difficulty := float(level - 1) / float(level + 3)
-	for brand in PROFITS.size():
+	for brand in BASE_PRICES_CENTS.size():
 		weights.append(1.0 + difficulty * (4 - brand))
 	return weights
+
+func brand_price_cents(brand: int) -> int:
+	return int(round(BASE_PRICES_CENTS[brand] * pow(1.0 + INFLATION_RATES[brand], level - 1)))
 
 func begin_move() -> bool:
 	if state != "playing" or current_moves <= 0:
@@ -64,9 +68,9 @@ func begin_move() -> bool:
 func award(brands: Array, cascade: int) -> int:
 	var earned := 0
 	for brand in brands:
-		earned += PROFITS[int(brand)]
+		earned += brand_price_cents(int(brand))
 	streak = cascade
-	# Each successive cascade adds 25% of base profit.
+	# Each successive cascade adds 25% of the current inflated profit.
 	earned = earned * (4 + maxi(0, cascade - 1)) / 4
 	revenue_cents += earned
 	changed.emit()
